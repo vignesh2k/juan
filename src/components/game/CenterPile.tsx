@@ -70,6 +70,16 @@ export function CenterPile({ pub, size, canDraw, hidden, landDelay, reduced, onD
             </AnimatePresence>
           </div>
           <StackBadge count={stack} />
+          {/* A wild's chosen colour isn't printed on the card, so spell it out under the pile. */}
+          <AnimatePresence>
+            {pub.topCard.color === null && (
+              <motion.span key={color} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={FADE}
+                className="absolute left-1/2 top-full mt-2 inline-flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full bg-black/60 px-2.5 py-0.5 text-xs font-bold capitalize shadow ring-1 ring-white/20">
+                <span className="h-2.5 w-2.5 rounded-full ring-1 ring-white/60" style={{ background: COLOR_HEX[color] }} />
+                {color}
+              </motion.span>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </div>
