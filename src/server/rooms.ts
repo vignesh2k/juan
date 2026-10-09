@@ -16,7 +16,8 @@ export function parseCode(raw: unknown): string {
 }
 
 export function cleanName(raw: unknown): string {
-  const name = String(raw ?? '').trim().replace(/\s+/g, ' ').slice(0, 16);
+  // Slice by code points so an emoji is never cut in half.
+  const name = Array.from(String(raw ?? '').trim().replace(/\s+/g, ' ')).slice(0, 16).join('').trim();
   if (!name) throw new HttpError(400, 'Enter a nickname');
   return name;
 }
@@ -38,8 +39,19 @@ export async function readGame(tx: Transaction, code: string, room: RoomDoc): Pr
   return { pub: room.game, priv: { hands, drawPile: secret.drawPile, discard: secret.discard } };
 }
 
-export function writeGame(tx: Transaction, code: string, room: RoomDoc, state: GameState, now: number) {
+const sameCards = (a: Card[] | undefined, b: Card[]) =>
+  !!a && a.length === b.length && a.every((card, i) => card.id === b[i].id);
+
+/**
+ * Writes the room doc, plus only the hand / deck docs that changed vs `prev` (the state read
+ * in this transaction). Without `prev` (a new game) everything is written.
+ */
+export function writeGame(tx: Transaction, code: string, room: RoomDoc, state: GameState, now: number, prev?: GameState) {
   tx.set(roomRef(code), { ...room, game: state.pub, updatedAt: now } satisfies RoomDoc);
-  for (const [id, cards] of Object.entries(state.priv.hands)) tx.set(handRef(code, id), { cards });
-  tx.set(secretRef(code), { drawPile: state.priv.drawPile, discard: state.priv.discard });
+  for (const [id, cards] of Object.entries(state.priv.hands)) {
+    if (!prev || !sameCards(prev.priv.hands[id], cards)) tx.set(handRef(code, id), { cards });
+  }
+  if (!prev || !sameCards(prev.priv.drawPile, state.priv.drawPile) || !sameCards(prev.priv.discard, state.priv.discard)) {
+    tx.set(secretRef(code), { drawPile: state.priv.drawPile, discard: state.priv.discard });
+  }
 }

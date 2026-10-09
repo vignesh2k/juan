@@ -18,6 +18,6 @@ export const POST = handler(async (uid, body) => {
     const state = await readGame(tx, code, room);
     const result = applyAction(state, uid, action, now, Math.random);
     if (!result.ok) throw new HttpError(400, result.error);
-    writeGame(tx, code, room, result.state, now);
+    writeGame(tx, code, room, result.state, now, state);
   });
 });
