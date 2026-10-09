@@ -7,6 +7,8 @@ interface Props {
   pub: PublicState;
   uid: string;
   handCount: number;
+  /** At least one card in hand is playable by me right now (my turn, or an exact-match jump-in). */
+  hasPlayable: boolean;
   /** JUAN! was just pressed; hide it until the server's answer arrives. */
   juanHidden: boolean;
   onDraw: () => void;
@@ -14,7 +16,7 @@ interface Props {
   onJuan: () => void;
 }
 
-export function ActionBar({ pub, uid, handCount, juanHidden, onDraw, onPass, onJuan }: Props) {
+export function ActionBar({ pub, uid, handCount, hasPlayable, juanHidden, onDraw, onPass, onJuan }: Props) {
   const me = pub.players.find((p) => p.id === uid);
   const myTurn = pub.turnPlayerId === uid;
   const turnName = pub.players.find((p) => p.id === pub.turnPlayerId)?.name ?? '';
@@ -24,7 +26,8 @@ export function ActionBar({ pub, uid, handCount, juanHidden, onDraw, onPass, onJ
     else if (pub.drawnCardId) status = 'Play the card you drew, or pass';
     else status = 'Your turn!';
   }
-  const showJuan = !juanHidden && ((handCount === 2 && !me?.calledJuan) || pub.catchable === uid);
+  // Same rule as the engine's callJuan: 2 cards with one about to be played, or the 1-card rescue.
+  const showJuan = !juanHidden && ((handCount === 2 && hasPlayable && !me?.calledJuan) || (handCount === 1 && pub.catchable === uid));
 
   return (
     <div className="absolute left-1/2 top-[61%] z-40 flex w-full -translate-x-1/2 flex-col items-center gap-2 px-2">

@@ -323,8 +323,53 @@ describe('Juan call', () => {
   });
 
   it('cannot call Juan with 3+ cards', () => {
-    const s = makeState({ hands: { a: filler('a'), b: filler('b') }, top: R5 });
-    expect(actErr(s, 'a', { type: 'callJuan' })).toMatch(/2 cards/);
+    const s = makeState({ hands: { a: [c('r3', 'red', '3'), ...filler('a')], b: filler('b') }, top: R5 });
+    expect(actErr(s, 'a', { type: 'callJuan' })).toBe("You can only call Juan when you're about to play down to 1 card");
+  });
+
+  it('cannot call Juan with 2 cards when neither is playable', () => {
+    const s = makeState({ hands: { a: [c('g7', 'green', '7'), c('g8', 'green', '8')], b: filler('b') }, top: R5 });
+    expect(actErr(s, 'a', { type: 'callJuan' })).toMatch(/about to play down to 1 card/);
+  });
+
+  it('cannot call Juan with 2 cards out of turn without an exact match', () => {
+    const s = makeState({ hands: { a: filler('a'), b: [c('r3', 'red', '3'), c('g7', 'green', '7')] }, top: R5 });
+    expect(actErr(s, 'b', { type: 'callJuan' })).toMatch(/about to play down to 1 card/);
+  });
+
+  it('can call Juan with 2 cards out of turn when one can jump in', () => {
+    const s = makeState({ hands: { a: filler('a'), b: [c('r5', 'red', '5'), c('g7', 'green', '7')] }, top: R5 });
+    const n = act(s, 'b', { type: 'callJuan' });
+    expect(n.pub.players[1].calledJuan).toBe(true);
+    expect(n.pub.lastAction).toMatchObject({ type: 'juan', playerId: 'b' });
+  });
+
+  it('under a +2 stack, can call Juan only when holding a +2 to stack', () => {
+    const top = c('t', 'red', 'draw2');
+    const pendingDraw = { kind: 'draw2', count: 2 } as const;
+    const stuck = makeState({ hands: { a: [c('r3', 'red', '3'), c('g7', 'green', '7')], b: filler('b') }, top, pendingDraw });
+    expect(actErr(stuck, 'a', { type: 'callJuan' })).toMatch(/about to play down to 1 card/);
+    const stacker = makeState({ hands: { a: [c('b2', 'blue', 'draw2'), c('g7', 'green', '7')], b: filler('b') }, top, pendingDraw });
+    expect(act(stacker, 'a', { type: 'callJuan' }).pub.players[0].calledJuan).toBe(true);
+  });
+
+  it('after drawing, can call Juan only if the drawn card is playable', () => {
+    const hands = { a: [c('r3', 'red', '3'), c('d1', 'red', '9')], b: filler('b') };
+    expect(act(makeState({ hands, top: R5, drawnCardId: 'd1' }), 'a', { type: 'callJuan' }).pub.players[0].calledJuan).toBe(true);
+    const dud = { a: [c('r3', 'red', '3'), c('d1', 'blue', '9')], b: filler('b') };
+    expect(actErr(makeState({ hands: dud, top: R5, drawnCardId: 'd1' }), 'a', { type: 'callJuan' })).toMatch(/about to play down to 1 card/);
+  });
+
+  it('cannot call Juan with 1 card when not catchable', () => {
+    const s = makeState({ hands: { a: [c('r3', 'red', '3')], b: filler('b') }, top: R5 });
+    expect(actErr(s, 'a', { type: 'callJuan' })).toMatch(/about to play down to 1 card/);
+  });
+
+  it('can still rescue yourself at 1 card while catchable, even with nothing playable', () => {
+    const s = makeState({ hands: { a: [c('g7', 'green', '7')], b: filler('b') }, top: R5, turn: 'b', catchable: 'a' });
+    const n = act(s, 'a', { type: 'callJuan' });
+    expect(n.pub.catchable).toBeNull();
+    expect(n.pub.players[0].calledJuan).toBe(true);
   });
 
   it('calling Juan at 1 card while catchable saves you', () => {

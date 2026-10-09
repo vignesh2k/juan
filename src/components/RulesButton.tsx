@@ -15,7 +15,7 @@ const RULES: [string, string][] = [
   ['Drawing', 'Can’t or don’t want to play? Draw 1. If it’s playable you may play it right away, otherwise your turn passes.'],
   ['Empty draw pile', 'When the draw pile runs out, the discard pile (minus the top card) is shuffled into a new one.'],
   ['Skip / Reverse', 'Skip jumps the next player. Reverse flips direction (with 2 players it acts like a Skip).'],
-  ['Juan!', 'Press JUAN! any time you’re holding 2 cards. If you reach 1 card without calling it, anyone can hit CATCH and you draw 2 — but only until the next move, when the chance to catch you closes.'],
+  ['Juan!', 'Holding 2 cards and about to play one of them (on your turn, or jumping in)? Press JUAN! first. If you reach 1 card without calling it, anyone can hit CATCH and you draw 2 — but only until the next move, when the chance to catch you closes. Forgot? Press JUAN! straight after playing to save yourself before someone catches you.'],
   ['No power finish', 'You can’t finish on a power card (Skip, Reverse, +2, Wild, +4). If you play one as your last card it still takes effect, but you draw 1 card.'],
   ['Turn timer', 'You have 30 seconds per turn. Run out and you automatically draw (or take the stack) and your turn passes.'],
 ];

@@ -1,5 +1,5 @@
 import { createDeck, shuffle } from './deck';
-import { canPlay, explainIllegal, isNumber, isPower, isWild, matchesTop } from './rules';
+import { canPlay, explainIllegal, isNumber, isPower, isWild, legalCardIds, matchesTop } from './rules';
 import {
   COLORS, HAND_SIZE, MAX_PLAYERS, MIN_PLAYERS, TURN_MS,
   type Action, type ActionResult, type Card, type Color, type GameState, type LastAction, type Player, type PlayerPublic, type Rng,
@@ -150,13 +150,13 @@ function callJuan(s: GameState, pid: string): string | null {
   const count = s.priv.hands[pid].length;
   const p = playerOf(s, pid);
   if (p.calledJuan && s.pub.catchable !== pid) return 'Already called';
-  if (count === 2) {
+  if (count === 2 && legalCardIds(s.pub, pid, s.priv.hands[pid]).size > 0) {
     p.calledJuan = true;
   } else if (count === 1 && s.pub.catchable === pid) {
     p.calledJuan = true;
     s.pub.catchable = null;
   } else {
-    return 'You can only call Juan with 2 cards left';
+    return "You can only call Juan when you're about to play down to 1 card";
   }
   record(s, { type: 'juan', playerId: pid });
   return null;

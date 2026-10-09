@@ -194,7 +194,7 @@ export function GameTable({ room, uid, hand, offline }: Props) {
       <CenterPile pub={pub} size={size} enterFrom={enterFrom} canDraw={myTurn && !pub.drawnCardId}
         onDraw={() => run({ type: 'draw' })} />
 
-      <ActionBar pub={pub} uid={uid} handCount={hand.length}
+      <ActionBar pub={pub} uid={uid} handCount={hand.length} hasPlayable={legal.size > 0}
         onDraw={() => run({ type: 'draw' })} onPass={() => run({ type: 'pass' })} juanHidden={juanSentAtSeq === pub.lastAction.seq} onJuan={onJuan} />
 
       <Hand cards={hand} legal={legal} size={size} width={width} shake={shake} onPlay={onPlay} />
