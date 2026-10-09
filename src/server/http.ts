@@ -24,11 +24,11 @@ export function handler(fn: (uid: string, body: Body) => Promise<object | void>)
       const uid = await requireUid(req);
       const body = ((await req.json().catch(() => ({}))) ?? {}) as Body;
       const data = (await fn(uid, body)) ?? {};
-      return Response.json({ ok: true, ...data });
+      return Response.json({ ok: true, ...data, serverNow: Date.now() });
     } catch (e) {
-      if (e instanceof HttpError) return Response.json({ ok: false, error: e.message }, { status: e.status });
+      if (e instanceof HttpError) return Response.json({ ok: false, error: e.message, serverNow: Date.now() }, { status: e.status });
       console.error(e);
-      return Response.json({ ok: false, error: 'Something went wrong' }, { status: 500 });
+      return Response.json({ ok: false, error: 'Something went wrong', serverNow: Date.now() }, { status: 500 });
     }
   };
 }

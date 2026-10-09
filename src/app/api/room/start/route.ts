@@ -12,7 +12,7 @@ export const POST = handler(async (uid, body) => {
     const room = await readRoom(tx, code, now);
     if (room.hostId !== uid) throw new HttpError(403, 'Only the host can start the game');
     if (!isRoomOpen(room)) throw new HttpError(409, 'The game is already running');
-    if (room.lobby.length < MIN_PLAYERS) throw new HttpError(409, 'Need at least 2 players');
-    writeGame(tx, code, room, startGame(room.lobby, Math.random, now), now);
+    if (room.lobby.length < MIN_PLAYERS) throw new HttpError(409, `Need at least ${MIN_PLAYERS} players`);
+    writeGame(tx, code, room, startGame(room.lobby, Math.random, now, room.game?.lastAction.seq ?? 0), now);
   });
 });

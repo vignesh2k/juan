@@ -15,7 +15,9 @@ export const POST = handler(async (uid, body) => {
     if (!inLobby && !isRoomOpen(room)) throw new HttpError(409, 'That game has already started');
     if (!inLobby && room.lobby.length >= MAX_PLAYERS) throw new HttpError(409, 'That room is full');
     const lobby = inLobby ? room.lobby.map((p) => (p.id === uid ? { ...p, name } : p)) : [...room.lobby, { id: uid, name }];
-    tx.update(roomRef(code), { lobby, updatedAt: now });
+    // A host who left an emptied lobby hands the room to whoever joins next.
+    const hostId = lobby.some((p) => p.id === room.hostId) ? room.hostId : uid;
+    tx.update(roomRef(code), { lobby, hostId, updatedAt: now });
   });
   return { code };
 });
