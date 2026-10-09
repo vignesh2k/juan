@@ -7,12 +7,14 @@ interface Props {
   pub: PublicState;
   uid: string;
   handCount: number;
+  /** JUAN! was just pressed; hide it until the server's answer arrives. */
+  juanHidden: boolean;
   onDraw: () => void;
   onPass: () => void;
   onJuan: () => void;
 }
 
-export function ActionBar({ pub, uid, handCount, onDraw, onPass, onJuan }: Props) {
+export function ActionBar({ pub, uid, handCount, juanHidden, onDraw, onPass, onJuan }: Props) {
   const me = pub.players.find((p) => p.id === uid);
   const myTurn = pub.turnPlayerId === uid;
   const turnName = pub.players.find((p) => p.id === pub.turnPlayerId)?.name ?? '';
@@ -22,7 +24,7 @@ export function ActionBar({ pub, uid, handCount, onDraw, onPass, onJuan }: Props
     else if (pub.drawnCardId) status = 'Play the card you drew, or pass';
     else status = 'Your turn!';
   }
-  const showJuan = (handCount === 2 && !me?.calledJuan) || pub.catchable === uid;
+  const showJuan = !juanHidden && ((handCount === 2 && !me?.calledJuan) || pub.catchable === uid);
 
   return (
     <div className="absolute left-1/2 top-[61%] z-40 flex w-full -translate-x-1/2 flex-col items-center gap-2 px-2">

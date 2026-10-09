@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { RulesButton } from './RulesButton';
 import { toast } from './Toaster';
 import { api } from '@/lib/api';
-import type { RoomDoc } from '@/game/room';
+import { canStartGame, type RoomDoc } from '@/game/room';
 import { MAX_PLAYERS, MIN_PLAYERS } from '@/game/types';
 
 export function avatarColor(id: string): string {
@@ -14,25 +14,30 @@ export function avatarColor(id: string): string {
   return `hsl(${h % 360} 70% 55%)`;
 }
 
+/** First character of a name (a whole emoji, not half a surrogate pair). */
+export const avatarInitial = (name: string) => (Array.from(name)[0] ?? '').toUpperCase();
+
+export async function copyInviteLink(code: string) {
+  const link = `${location.origin}/room/${code}`;
+  try {
+    await navigator.clipboard.writeText(link);
+    toast('Invite link copied');
+  } catch {
+    toast(link);
+  }
+}
+
 export function Lobby({ room, uid }: { room: RoomDoc; uid: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const isHost = room.hostId === uid;
+  const canStart = canStartGame(room, uid);
+  const copy = () => copyInviteLink(room.code);
 
-  async function copy() {
-    const link = `${location.origin}/room/${room.code}`;
-    try {
-      await navigator.clipboard.writeText(link);
-      toast('Invite link copied');
-    } catch {
-      toast(link);
-    }
-  }
-
-  async function run(path: string) {
+  async function run(path: string, extra: object = {}) {
     setBusy(true);
     try {
-      await api(path, { code: room.code });
+      await api(path, { code: room.code, ...extra });
       if (path === 'room/leave') router.push('/');
     } catch (e) {
       toast((e as Error).message);
@@ -60,17 +65,24 @@ export function Lobby({ room, uid }: { room: RoomDoc; uid: string }) {
             <motion.li key={p.id} initial={{ x: -20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: i * 0.05 }}
               className="flex items-center gap-3 rounded-2xl bg-white/5 px-3 py-2">
               <span className="grid h-9 w-9 place-items-center rounded-full font-display text-lg" style={{ background: avatarColor(p.id) }}>
-                {p.name[0]?.toUpperCase()}
+                {avatarInitial(p.name)}
               </span>
-              <span className="flex-1 font-semibold">{p.name}{p.id === uid && <span className="text-white/50"> (you)</span>}</span>
+              <span className="min-w-0 flex-1 truncate font-semibold">{p.name}{p.id === uid && <span className="text-white/50"> (you)</span>}</span>
               {p.id === room.hostId && <span title="Host">👑</span>}
+              {isHost && p.id !== uid && (
+                <button aria-label={`Remove ${p.name}`} title={`Remove ${p.name}`} disabled={busy}
+                  onClick={() => run('room/kick', { playerId: p.id })}
+                  className="grid h-7 w-7 place-items-center rounded-full text-sm text-white/50 hover:bg-white/10 hover:text-white">
+                  ✕
+                </button>
+              )}
             </motion.li>
           ))}
         </ul>
       </div>
 
       <div className="mt-6 w-full max-w-sm space-y-3">
-        {isHost ? (
+        {canStart ? (
           <button className="btn btn-green w-full" disabled={busy || room.lobby.length < MIN_PLAYERS} onClick={() => run('room/start')}>
             {room.lobby.length < MIN_PLAYERS ? 'Waiting for players…' : 'Start game'}
           </button>

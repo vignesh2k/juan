@@ -1,6 +1,6 @@
 'use client';
 import { AnimatePresence, motion } from 'motion/react';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { CardFace, type CardSize } from '../Card';
 import { sortHand } from './sortHand';
 import type { Card } from '@/game/types';
@@ -14,7 +14,21 @@ interface Props {
   onPlay: (card: Card) => void;
 }
 
+/** True on devices with a real hover (mouse); touch screens would leave a tapped card stuck "lifted". */
+function useCanHover() {
+  const [canHover, setCanHover] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(hover: hover)');
+    const update = () => setCanHover(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+  return canHover;
+}
+
 export function Hand({ cards, legal, size, width, shake, onPlay }: Props) {
+  const canHover = useCanHover();
   const sorted = useMemo(() => sortHand(cards), [cards]);
   const cardW = size === 'lg' ? 90 : 70;
   const cardH = cardW * 1.5;
@@ -40,7 +54,7 @@ export function Hand({ cards, legal, size, width, shake, onPlay }: Props) {
               initial={{ y: -320, opacity: 0, scale: 0.6 }}
               animate={{ x: off * step, y: t * t * 18 - (playable ? 22 : 0), rotate: t * tilt, opacity: 1, scale: 1, filter: playable ? 'brightness(1)' : 'brightness(0.55)' }}
               exit={{ y: -280, opacity: 0, scale: 0.7, transition: { duration: 0.25 } }}
-              whileHover={playable ? { y: -48, scale: 1.08 } : undefined}
+              whileHover={playable && canHover ? { y: -48, scale: 1.08 } : undefined}
               transition={{ type: 'spring', stiffness: 320, damping: 26 }}>
               <motion.div key={shake.id === card.id ? shake.n : 0} animate={shake.id === card.id ? { x: [0, -10, 10, -6, 6, 0] } : undefined} transition={{ duration: 0.35 }}>
                 <CardFace card={card} size={size} />

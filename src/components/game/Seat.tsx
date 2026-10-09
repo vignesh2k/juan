@@ -1,7 +1,7 @@
 'use client';
 import { motion } from 'motion/react';
 import { CardBack } from '../Card';
-import { avatarColor } from '../Lobby';
+import { avatarColor, avatarInitial } from '../Lobby';
 import { TurnRing } from './TurnRing';
 import type { Pos } from './layout';
 import type { PlayerPublic } from '@/game/types';
@@ -22,7 +22,7 @@ export function Seat({ player, pos, isTurn, deadline, catchable, compact, onCatc
     <motion.div animate={{ scale: isTurn ? 1.08 : 1 }}
       className={`grid place-items-center rounded-full font-display shadow-lg ring-2 ring-black/30 ${compact ? 'h-9 w-9 text-lg' : 'h-11 w-11 text-xl'}`}
       style={{ background: avatarColor(player.id), boxShadow: isTurn ? '0 0 24px rgba(250,204,21,.8)' : undefined }}>
-      {player.name[0]?.toUpperCase()}
+      {avatarInitial(player.name)}
     </motion.div>
   );
   const fan = Math.min(player.cardCount, 6);
