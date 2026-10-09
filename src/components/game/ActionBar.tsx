@@ -1,5 +1,6 @@
 'use client';
 import { motion } from 'motion/react';
+import { pulse, SPRING_POP } from './motion';
 import { TurnRing } from './TurnRing';
 import type { PublicState } from '@/game/types';
 
@@ -47,8 +48,8 @@ export function ActionBar({ pub, uid, handCount, hasPlayable, juanHidden, onDraw
         {myTurn && pub.drawnCardId && <button className="btn btn-gray px-4 py-2 text-base" onClick={onPass}>Pass</button>}
         {showJuan && (
           <motion.button className="btn btn-red px-4 py-2 text-base" onClick={onJuan}
-            initial={{ scale: 0 }} animate={{ scale: 1 }}>
-            <motion.span className="block" animate={{ scale: [1, 1.12, 1] }} transition={{ repeat: Infinity, duration: 0.8 }}>JUAN!</motion.span>
+            initial={{ scale: 0 }} animate={{ scale: 1 }} transition={SPRING_POP}>
+            <motion.span className="block" animate={{ scale: [1, 1.12, 1] }} transition={pulse(0.8)}>JUAN!</motion.span>
           </motion.button>
         )}
       </div>

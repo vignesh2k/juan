@@ -1,19 +1,24 @@
 'use client';
-import { motion, useAnimationControls } from 'motion/react';
+import { motion, MotionConfig, useAnimationControls, useReducedMotion } from 'motion/react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RulesButton } from '../RulesButton';
 import { toast } from '../Toaster';
 import { ActionBar } from './ActionBar';
+import { AnchorsProvider } from './anchors';
 import { CenterPile } from './CenterPile';
 import { ColorPicker } from './ColorPicker';
-import { Effects } from './Effects';
+import { Banner } from './effects/Banner';
+import { ColorWash } from './effects/ColorWash';
+import { FlyingCards } from './effects/FlyingCards';
+import { PowerEffects } from './effects/PowerEffects';
+import { landDelayMs } from './effects/timing';
 import { Hand } from './Hand';
-import { ME_POS, PILE_POS, seatPositions, type Pos } from './layout';
+import { seatPositions } from './layout';
 import { Seat } from './Seat';
 import { WinnerOverlay } from './WinnerOverlay';
 import { api, sendAction } from '@/lib/api';
-import { useChangeEffect, useNow, useViewport } from '@/lib/hooks';
+import { useNow, useViewport } from '@/lib/hooks';
 import { serverNow } from '@/lib/serverClock';
 import { explainIllegal, isWild, legalCardIds } from '@/game/rules';
 import { activeLobby, canStartGame, type RoomDoc } from '@/game/room';
@@ -39,10 +44,6 @@ export function GameTable({ room, uid, hand, offline }: Props) {
   const opponents = useMemo(() => Array.from({ length: n - 1 }, (_, k) => pub.players[(myIdx + k + 1) % n]), [pub.players, myIdx, n]);
   const seats = useMemo(() => seatPositions(opponents.length, compact), [opponents.length, compact]);
 
-  const posOf = useCallback(
-    (id: string): Pos => (id === uid ? ME_POS : seats[opponents.findIndex((o) => o.id === id)] ?? PILE_POS),
-    [uid, seats, opponents],
-  );
   const nameOf = useCallback((id: string) => pub.players.find((p) => p.id === id)?.name ?? '?', [pub.players]);
 
   const legal = useMemo(() => legalCardIds(pub, uid, hand), [pub, uid, hand]);
@@ -50,6 +51,22 @@ export function GameTable({ room, uid, hand, offline }: Props) {
   const [shake, setShake] = useState({ id: '', n: 0 });
   const [busy, setBusy] = useState(false);
   const shakeTable = useAnimationControls();
+  const reduced = useReducedMotion() ?? false;
+
+  // Played cards in the air: hidden on the pile (and in the hand) until their flight lands.
+  const [flying, setFlying] = useState<ReadonlySet<string>>(() => new Set());
+  const onFlightEnd = useCallback((id: string) => setFlying((f) => {
+    if (!f.has(id)) return f;
+    const next = new Set(f);
+    next.delete(id);
+    return next;
+  }), []);
+  const onFlightStart = useCallback((id: string) => setFlying((f) => new Set(f).add(id)), []);
+  // The top card can never still be in your hand, even if the hand snapshot lags the room's.
+  const hiddenInHand = useMemo(() => new Set(flying).add(pub.topCard.id), [flying, pub.topCard.id]);
+  const landDelay = landDelayMs(pub.lastAction, reduced);
+  const dealing = pub.lastAction.type === 'start';
+  const [sendingId, setSendingId] = useState<string | null>(null);
 
   // Drop a half-finished wild play once it no longer applies. Not on every turn change: an
   // out-of-turn wild-on-wild jump stays open for as long as it's still legal.
@@ -73,6 +90,7 @@ export function GameTable({ room, uid, hand, offline }: Props) {
       if (stillSending()) return false;
       pendingSince.current = Date.now();
     }
+    if (action.type === 'play') setSendingId(action.cardId);
     try {
       await sendAction(code, action);
       return true;
@@ -82,6 +100,7 @@ export function GameTable({ room, uid, hand, offline }: Props) {
       return false;
     } finally {
       if (guarded) pendingSince.current = 0;
+      if (action.type === 'play') setSendingId(null);
     }
   }, [code, stillSending]);
 
@@ -128,16 +147,11 @@ export function GameTable({ room, uid, hand, offline }: Props) {
     });
   }, [tick, pub.turnDeadline, pub.status, code, timeoutDelay]);
 
-  // Shake the table when a +4 lands (only for new actions, not metadata-only snapshots).
-  useChangeEffect(pub.lastAction.seq, () => {
-    const a = pub.lastAction;
-    if ((a.type === 'play' || a.type === 'jump') && a.card?.value === 'wild4') {
-      shakeTable.start({ x: [0, -14, 14, -10, 10, -4, 0], transition: { duration: 0.5 } });
-    }
-  });
+  // A small jolt when a +4 lands (PowerEffects calls this at the landing).
+  const onShake = useCallback(() => {
+    shakeTable.start({ x: [0, -6, 6, -3, 3, 0], transition: { duration: 0.35 } });
+  }, [shakeTable]);
 
-  const la = pub.lastAction;
-  const enterFrom = (la.type === 'play' || la.type === 'jump') && la.card?.id === pub.topCard.id ? posOf(la.playerId) : PILE_POS;
   const myTurn = pub.turnPlayerId === uid;
 
   async function playAgain() {
@@ -167,8 +181,11 @@ export function GameTable({ room, uid, hand, offline }: Props) {
   }, [room]);
 
   return (
+    <MotionConfig reducedMotion="user">
+    <AnchorsProvider>
     <motion.main animate={shakeTable} className="fixed inset-0 select-none overflow-hidden">
       <div className="felt-wrap"><div className="felt" /></div>
+      <ColorWash pub={pub} reduced={reduced} />
 
       <div className="absolute inset-x-0 top-0 z-50 flex items-center justify-between p-3">
         <span className="rounded-full bg-black/50 px-3 py-1 font-display tracking-widest text-yellow-300">{code}</span>
@@ -188,18 +205,22 @@ export function GameTable({ room, uid, hand, offline }: Props) {
 
       {opponents.map((p, i) => (
         <Seat key={p.id} player={p} pos={seats[i]} isTurn={pub.turnPlayerId === p.id} deadline={pub.turnDeadline}
-          catchable={pub.catchable === p.id} compact={compact} onCatch={() => run({ type: 'catch', targetId: p.id })} />
+          catchable={pub.catchable === p.id} compact={compact} dealing={dealing} reduced={reduced}
+          onCatch={() => run({ type: 'catch', targetId: p.id })} />
       ))}
 
-      <CenterPile pub={pub} size={size} enterFrom={enterFrom} canDraw={myTurn && !pub.drawnCardId}
+      <CenterPile pub={pub} size={size} canDraw={myTurn && !pub.drawnCardId} hidden={flying} landDelay={landDelay} reduced={reduced}
         onDraw={() => run({ type: 'draw' })} />
 
       <ActionBar pub={pub} uid={uid} handCount={hand.length} hasPlayable={legal.size > 0}
         onDraw={() => run({ type: 'draw' })} onPass={() => run({ type: 'pass' })} juanHidden={juanSentAtSeq === pub.lastAction.seq} onJuan={onJuan} />
 
-      <Hand cards={hand} legal={legal} size={size} width={width} shake={shake} onPlay={onPlay} />
+      <Hand cards={hand} legal={legal} size={size} width={width} height={height} shake={shake} hidden={hiddenInHand}
+        sendingId={sendingId} dealing={dealing} reduced={reduced} onPlay={onPlay} />
 
-      <Effects lastAction={pub.lastAction} nameOf={nameOf} posOf={posOf} />
+      <FlyingCards pub={pub} uid={uid} size={size} reduced={reduced} onFlightStart={onFlightStart} onFlightEnd={onFlightEnd} />
+      <PowerEffects pub={pub} uid={uid} reduced={reduced} onShake={onShake} />
+      <Banner lastAction={pub.lastAction} nameOf={nameOf} reduced={reduced} />
       <ColorPicker open={!!wildCard} onPick={onPickColor} onCancel={() => setWildCard(null)} />
       {pub.status === 'finished' && (
         <WinnerOverlay code={code} uid={uid} lobby={room.lobby} away={away}
@@ -207,5 +228,7 @@ export function GameTable({ room, uid, hand, offline }: Props) {
           busy={busy} onPlayAgain={playAgain} onLeave={leave} />
       )}
     </motion.main>
+    </AnchorsProvider>
+    </MotionConfig>
   );
 }

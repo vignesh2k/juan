@@ -14,6 +14,3 @@ export function seatPositions(count: number, compact = false): Pos[] {
     return { x: 50 + rx * Math.cos(t), y: cy + ry * Math.sin(t) };
   });
 }
-
-/** Motion offset (in viewport units) from `to` back to `from`. */
-export const offsetFrom = (from: Pos, to: Pos) => ({ x: `${from.x - to.x}vw`, y: `${from.y - to.y}vh` });
