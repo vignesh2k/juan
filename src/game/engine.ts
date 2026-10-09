@@ -10,7 +10,8 @@ export function startGame(players: Player[], rng: Rng, now: number, prevSeq = 0)
     throw new Error(`Need ${MIN_PLAYERS}–${MAX_PLAYERS} players`);
   }
   if (new Set(players.map((p) => p.id)).size !== players.length) throw new Error('Duplicate player ids');
-  const drawPile = shuffle(createDeck(), rng);
+  // Re-id after shuffling so a card's id never reveals what it is (ids reach clients via drawnCardId etc.).
+  const drawPile = withOpaqueIds(shuffle(createDeck(), rng), rng);
   const hands: Record<string, Card[]> = {};
   for (const p of players) hands[p.id] = drawPile.splice(0, HAND_SIZE);
   const [topCard] = drawPile.splice(drawPile.findIndex(isNumber), 1);
@@ -18,7 +19,7 @@ export function startGame(players: Player[], rng: Rng, now: number, prevSeq = 0)
   const state: GameState = {
     pub: {
       status: 'playing',
-      players: players.map((p) => ({ id: p.id, name: p.name, cardCount: HAND_SIZE, calledJuan: false })),
+      players: players.map((p) => ({ id: p.id, name: p.name, cardCount: HAND_SIZE, calledJuan: false, missedTurns: 0 })),
       turnPlayerId,
       direction: 1,
       topCard,
@@ -43,6 +44,7 @@ export function applyAction(state: GameState, playerId: string, action: Action, 
   const s = structuredClone(state);
   const error = dispatch(s, playerId, action, now, rng);
   if (error) return { ok: false, error };
+  if (action.type !== 'timeout') playerOf(s, playerId).missedTurns = 0;
   syncCounts(s);
   return { ok: true, state: s };
 }
@@ -146,6 +148,7 @@ function pass(s: GameState, pid: string, now: number): string | null {
 function callJuan(s: GameState, pid: string): string | null {
   const count = s.priv.hands[pid].length;
   const p = playerOf(s, pid);
+  if (p.calledJuan && s.pub.catchable !== pid) return 'Already called';
   if (count === 2) {
     p.calledJuan = true;
   } else if (count === 1 && s.pub.catchable === pid) {
@@ -179,12 +182,29 @@ function timeout(s: GameState, now: number, rng: Rng): string | null {
   } else if (!pub.drawnCardId) {
     n = drawCards(s, target, 1, rng).length;
   }
+  const p = playerOf(s, target);
+  p.missedTurns = (p.missedTurns ?? 0) + 1; // ?? 0: games stored before missedTurns existed
   record(s, { type: 'timeout', playerId: target, n });
   endTurn(s, advance(s, target, 1), now);
   return null;
 }
 
 // ---- helpers ----
+
+const ID_CHARS = '0123456789abcdefghijklmnopqrstuvwxyz';
+
+/** Gives each card a unique random 8-char id drawn from `rng` (deterministic for seeded tests). */
+function withOpaqueIds(cards: Card[], rng: Rng): Card[] {
+  const used = new Set<string>();
+  return cards.map((card) => {
+    let id: string;
+    do {
+      id = Array.from({ length: 8 }, () => ID_CHARS[Math.floor(rng() * ID_CHARS.length)]).join('');
+    } while (used.has(id));
+    used.add(id);
+    return { ...card, id };
+  });
+}
 
 function playerOf(s: GameState, id: string): PlayerPublic {
   const p = s.pub.players.find((x) => x.id === id);

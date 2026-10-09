@@ -19,6 +19,8 @@ export interface Player {
 export interface PlayerPublic extends Player {
   cardCount: number;
   calledJuan: boolean;
+  /** Consecutive turns lost to the timer; reset by any successful action of theirs. */
+  missedTurns: number;
 }
 
 export type DrawKind = 'draw2' | 'wild4';

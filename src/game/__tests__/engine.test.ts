@@ -31,6 +31,24 @@ describe('startGame', () => {
     expect(() => startGame([{ id: 'a', name: 'A' }, { id: 'a', name: 'A2' }], seededRng(1), 0)).toThrow(/duplicate/i);
   });
 
+  it('gives every card a unique opaque id that does not reveal the card', () => {
+    const s = startGame(players(4), seededRng(9), 0);
+    const all = [...Object.values(s.priv.hands).flat(), ...s.priv.drawPile, s.pub.topCard];
+    expect(all).toHaveLength(108);
+    expect(new Set(all.map((x) => x.id)).size).toBe(108);
+    for (const card of all) expect(card.id).not.toMatch(/^c\d+$/);
+    for (const card of all) expect(card.id).toMatch(/^[0-9a-z]{8}$/);
+  });
+
+  it('is deterministic for a seed, including card ids', () => {
+    expect(startGame(players(3), seededRng(11), 0)).toEqual(startGame(players(3), seededRng(11), 0));
+  });
+
+  it('starts everyone with no missed turns', () => {
+    const s = startGame(players(3), seededRng(2), 0);
+    expect(s.pub.players.map((p) => p.missedTurns)).toEqual([0, 0, 0]);
+  });
+
   it('records the start as the turn player, continuing the previous sequence', () => {
     const fresh = startGame(players(3), seededRng(5), 0);
     expect(fresh.pub.lastAction).toEqual({ seq: 1, type: 'start', playerId: fresh.pub.turnPlayerId });
@@ -290,6 +308,11 @@ describe('Juan call', () => {
     expect(actErr(n, 'a', { type: 'catch', targetId: 'a' })).toMatch(/yourself/);
   });
 
+  it('cannot call Juan twice', () => {
+    const n = act(two(), 'a', { type: 'callJuan' });
+    expect(actErr(n, 'a', { type: 'callJuan' })).toBe('Already called');
+  });
+
   it('drawing resets your Juan call', () => {
     const s = makeState({ hands: { a: [c('g7', 'green', '7'), c('g8', 'green', '8')], b: filler('b') }, top: R5, calledJuan: ['a'], drawPile: [c('d1', 'blue', '9')] });
     const n = act(s, 'a', { type: 'draw' });
@@ -343,5 +366,51 @@ describe('turn timer', () => {
     const n = act(s, 'b', { type: 'timeout' }, 30_001);
     expect(n.priv.hands.a).toHaveLength(7);
     expect(n.pub.pendingDraw).toBeNull();
+  });
+});
+
+describe('missed turns', () => {
+  const base = (missed: Record<string, number> = {}) =>
+    makeState({ hands: { a: [c('r3', 'red', '3'), ...filler('a')], b: filler('b'), c: filler('c') }, top: R5, deadline: 30_000, missedTurns: missed });
+  const missed = (s: ReturnType<typeof base>) => Object.fromEntries(s.pub.players.map((p) => [p.id, p.missedTurns]));
+
+  it('a timeout counts a missed turn for the timed-out player only', () => {
+    const n = act(base(), 'b', { type: 'timeout' }, 30_001);
+    expect(missed(n)).toEqual({ a: 1, b: 0, c: 0 });
+    const m = act(n, 'a', { type: 'timeout' }, 60_001);
+    expect(missed(m)).toEqual({ a: 1, b: 1, c: 0 });
+  });
+
+  it('consecutive timeouts accumulate', () => {
+    const s = makeState({ hands: { a: filler('a'), b: filler('b') }, top: R5, deadline: 30_000, missedTurns: { a: 1 }, turn: 'a' });
+    const n = act(s, 'b', { type: 'timeout' }, 30_001);
+    expect(n.pub.players[0].missedTurns).toBe(2);
+  });
+
+  it.each<[string, Action, Record<string, number>]>([
+    ['play', { type: 'play', cardId: 'r3' }, { a: 3 }],
+    ['draw', { type: 'draw' }, { a: 3 }],
+  ])('a successful %s resets the actor\'s missed turns', (_, action, start) => {
+    const n = act(base({ ...start, b: 2 }), 'a', action);
+    expect(missed(n)).toEqual({ a: 0, b: 2, c: 0 });
+  });
+
+  it('pass, callJuan, catch and jump reset the actor\'s missed turns', () => {
+    const drawn = makeState({ hands: { a: filler('a'), b: filler('b') }, top: R5, drawnCardId: 'a1', missedTurns: { a: 2 } });
+    expect(act(drawn, 'a', { type: 'pass' }).pub.players[0].missedTurns).toBe(0);
+
+    const juan = makeState({ hands: { a: [c('r3', 'red', '3'), c('g7', 'green', '7')], b: filler('b') }, top: R5, missedTurns: { a: 2 } });
+    expect(act(juan, 'a', { type: 'callJuan' }).pub.players[0].missedTurns).toBe(0);
+
+    const catchable = makeState({ hands: { a: [c('g7', 'green', '7')], b: filler('b') }, top: R5, catchable: 'a', missedTurns: { b: 2 } });
+    expect(act(catchable, 'b', { type: 'catch', targetId: 'a' }).pub.players[1].missedTurns).toBe(0);
+
+    const jump = makeState({ hands: { a: filler('a'), b: [c('r5', 'red', '5'), ...filler('b')], c: filler('c') }, top: R5, missedTurns: { b: 2 } });
+    expect(act(jump, 'b', { type: 'play', cardId: 'r5' }).pub.players[1].missedTurns).toBe(0);
+  });
+
+  it('a failed action does not reset missed turns', () => {
+    const s = base({ b: 2 });
+    expect(applyAction(s, 'b', { type: 'draw' }, 0, seededRng(1)).ok).toBe(false);
   });
 });

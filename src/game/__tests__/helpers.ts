@@ -19,6 +19,7 @@ export interface MakeStateOpts {
   catchable?: string | null;
   drawnCardId?: string | null;
   calledJuan?: string[];
+  missedTurns?: Record<string, number>;
   deadline?: number;
 }
 
@@ -34,6 +35,7 @@ export function makeState(o: MakeStateOpts): GameState {
         name: id.toUpperCase(),
         cardCount: hands[id].length,
         calledJuan: o.calledJuan?.includes(id) ?? false,
+        missedTurns: o.missedTurns?.[id] ?? 0,
       })),
       turnPlayerId: o.turn ?? ids[0],
       direction: o.direction ?? 1,
