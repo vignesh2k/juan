@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { Suspense } from 'react';
 import { GameTable } from '@/components/game/GameTable';
 import { JoinPrompt } from '@/components/JoinPrompt';
 import { Lobby } from '@/components/Lobby';
@@ -13,7 +14,7 @@ function Centered({ children }: { children: React.ReactNode }) {
   return <main className="flex min-h-dvh flex-col items-center justify-center gap-4 px-4 text-center">{children}</main>;
 }
 
-export default function RoomPage() {
+function RoomView() {
   const params = useParams<{ code: string }>();
   const code = normalizeRoomCode(params.code ?? '');
   const uid = useUid();
@@ -46,4 +47,12 @@ export default function RoomPage() {
     return <JoinPrompt code={code} />;
   }
   return <Lobby room={room} uid={uid} />;
+}
+
+export default function RoomPage() {
+  return (
+    <Suspense fallback={<Centered><p className="animate-pulse font-display text-2xl">Shuffling…</p></Centered>}>
+      <RoomView />
+    </Suspense>
+  );
 }
