@@ -47,8 +47,8 @@ export function ActionBar({ pub, uid, handCount, hasPlayable, juanHidden, onDraw
         {myTurn && pub.drawnCardId && <button className="btn btn-gray px-4 py-2 text-base" onClick={onPass}>Pass</button>}
         {showJuan && (
           <motion.button className="btn btn-red px-4 py-2 text-base" onClick={onJuan}
-            animate={{ scale: [1, 1.12, 1] }} transition={{ repeat: Infinity, duration: 0.8 }}>
-            JUAN!
+            initial={{ scale: 0 }} animate={{ scale: 1 }}>
+            <motion.span className="block" animate={{ scale: [1, 1.12, 1] }} transition={{ repeat: Infinity, duration: 0.8 }}>JUAN!</motion.span>
           </motion.button>
         )}
       </div>

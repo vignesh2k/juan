@@ -45,9 +45,9 @@ export function Seat({ player, pos, isTurn, deadline, catchable, compact, onCatc
       )}
       {player.calledJuan && player.cardCount <= 2 && <span className="font-display text-xs text-yellow-300">JUAN!</span>}
       {catchable && (
-        <motion.button onClick={onCatch} animate={{ scale: [1, 1.15, 1] }} transition={{ repeat: Infinity, duration: 0.6 }}
+        <motion.button onClick={onCatch} initial={{ scale: 0 }} animate={{ scale: 1 }}
           className="rounded-full bg-red-600 px-3 py-1 font-display text-sm shadow-lg">
-          CATCH!
+          <motion.span className="block" animate={{ scale: [1, 1.15, 1] }} transition={{ repeat: Infinity, duration: 0.6 }}>CATCH!</motion.span>
         </motion.button>
       )}
     </div>

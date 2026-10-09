@@ -72,10 +72,14 @@ export function CenterPile({ pub, size, enterFrom, canDraw, onDraw }: Props) {
           </div>
           <AnimatePresence>
             {pub.pendingDraw && (
-              <motion.div key="stack" initial={{ scale: 0 }} animate={{ scale: [1, 1.15, 1] }} exit={{ scale: 0 }}
-                transition={{ scale: { repeat: Infinity, duration: 0.9 } }}
-                className="absolute -right-6 -top-6 z-20 grid h-12 w-12 place-items-center rounded-full bg-gradient-to-br from-fuchsia-500 to-red-600 font-display text-xl shadow-xl ring-2 ring-white">
-                +{pub.pendingDraw.count}
+              // Enter/exit on the outer element with finite transitions; the endless pulse lives on the
+              // inner one. (An infinite repeat on the presence element means its exit never finishes.)
+              <motion.div key="stack" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0, opacity: 0, transition: { duration: 0.15 } }}
+                className="absolute -right-6 -top-6 z-20">
+                <motion.div animate={{ scale: [1, 1.15, 1] }} transition={{ repeat: Infinity, duration: 0.9 }}
+                  className="grid h-12 w-12 place-items-center rounded-full bg-gradient-to-br from-fuchsia-500 to-red-600 font-display text-xl shadow-xl ring-2 ring-white">
+                  +{pub.pendingDraw.count}
+                </motion.div>
               </motion.div>
             )}
           </AnimatePresence>
