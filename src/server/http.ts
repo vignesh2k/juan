@@ -1,4 +1,4 @@
-import { adminAuth } from './firebaseAdmin';
+import { verifyIdToken } from './verifyIdToken';
 
 export class HttpError extends Error {
   constructor(public status: number, message: string) {
@@ -10,7 +10,7 @@ async function requireUid(req: Request): Promise<string> {
   const header = req.headers.get('authorization');
   if (!header?.startsWith('Bearer ')) throw new HttpError(401, 'Not signed in');
   try {
-    return (await adminAuth().verifyIdToken(header.slice(7))).uid;
+    return await verifyIdToken(header.slice(7));
   } catch {
     throw new HttpError(401, 'Not signed in');
   }
