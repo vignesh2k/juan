@@ -44,6 +44,7 @@ export function applyAction(state: GameState, playerId: string, action: Action, 
   const s = structuredClone(state);
   const error = dispatch(s, playerId, action, now, rng);
   if (error) return { ok: false, error };
+  if (reshuffledStates.has(s)) s.pub.lastAction.reshuffled = true;
   if (action.type !== 'timeout') playerOf(s, playerId).missedTurns = 0;
   syncCounts(s);
   return { ok: true, state: s };
@@ -219,10 +220,14 @@ function advance(s: GameState, fromId: string, steps: number): string {
   return players[(((i + direction * steps) % n) + n) % n].id;
 }
 
+/** States (the per-action clone) whose discard pile was reshuffled into the draw pile during the action. */
+const reshuffledStates = new WeakSet<GameState>();
+
 function drawCards(s: GameState, pid: string, n: number, rng: Rng): Card[] {
   const drawn: Card[] = [];
   for (let i = 0; i < n; i++) {
-    if (s.priv.drawPile.length === 0) {
+    if (s.priv.drawPile.length === 0 && s.priv.discard.length > 0) {
+      reshuffledStates.add(s);
       s.priv.drawPile = shuffle(s.priv.discard, rng);
       s.priv.discard = [];
     }

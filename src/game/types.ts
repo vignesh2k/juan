@@ -41,6 +41,8 @@ export interface LastAction {
   n?: number;
   targetId?: string;
   penalty?: boolean; // played last card as a power card and drew 1
+  /** The discard pile was shuffled into the empty draw pile during this action. Omitted otherwise. */
+  reshuffled?: true;
 }
 
 export interface PublicState {

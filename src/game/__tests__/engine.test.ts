@@ -259,6 +259,49 @@ describe('drawing', () => {
     expect(n.priv.hands.a).toHaveLength(4);
     expect(n.priv.drawPile.length + n.priv.discard.length).toBe(1);
     expect(n.priv.discard).toHaveLength(0);
+    expect(n.pub.lastAction).toMatchObject({ type: 'draw', reshuffled: true });
+  });
+
+  it('does not mark a draw that needed no reshuffle (no reshuffled key at all)', () => {
+    const s = makeState({ hands: { a: filler('a'), b: filler('b') }, top: R5, drawPile: [c('d1', 'blue', '9')], discard: [c('x1', 'blue', '1')] });
+    const n = act(s, 'a', { type: 'draw' });
+    expect('reshuffled' in n.pub.lastAction).toBe(false);
+  });
+
+  it('marks a stack draw that reshuffles part-way through', () => {
+    const s = makeState({
+      hands: { a: filler('a'), b: filler('b') }, top: c('t', 'red', 'draw2'), pendingDraw: { kind: 'draw2', count: 2 },
+      drawPile: [c('d1', 'blue', '9')], discard: [c('x1', 'blue', '1'), c('x2', 'blue', '2')],
+    });
+    const n = act(s, 'a', { type: 'draw' });
+    expect(n.priv.hands.a).toHaveLength(5);
+    expect(n.pub.lastAction).toMatchObject({ type: 'stackDraw', n: 2, reshuffled: true });
+  });
+
+  it('marks catches, timeouts and power-finish penalties that reshuffle', () => {
+    const discard = [c('x1', 'blue', '1'), c('x2', 'blue', '2'), c('x3', 'blue', '3')];
+    const caught = makeState({ hands: { a: [c('g7', 'green', '7')], b: filler('b') }, top: R5, catchable: 'a', drawPile: [], discard });
+    expect(act(caught, 'b', { type: 'catch', targetId: 'a' }).pub.lastAction).toMatchObject({ type: 'catch', reshuffled: true });
+
+    const timedOut = makeState({ hands: { a: filler('a'), b: filler('b') }, top: R5, deadline: 30_000, drawPile: [], discard });
+    expect(act(timedOut, 'b', { type: 'timeout' }, 30_001).pub.lastAction).toMatchObject({ type: 'timeout', reshuffled: true });
+
+    const penalty = makeState({ hands: { a: [c('rs', 'red', 'skip')], b: filler('b') }, top: R5, drawPile: [], discard });
+    expect(act(penalty, 'a', { type: 'play', cardId: 'rs' }).pub.lastAction).toMatchObject({ type: 'play', penalty: true, reshuffled: true });
+  });
+
+  it('an empty draw pile with nothing to reshuffle is not a reshuffle', () => {
+    const s = makeState({ hands: { a: filler('a'), b: filler('b') }, top: R5, drawPile: [], discard: [] });
+    const n = act(s, 'a', { type: 'draw' });
+    expect(n.pub.lastAction).toMatchObject({ type: 'draw', n: 0 });
+    expect('reshuffled' in n.pub.lastAction).toBe(false);
+  });
+
+  it('a later action does not inherit the reshuffled flag', () => {
+    const s = makeState({ hands: { a: filler('a'), b: filler('b') }, top: R5, drawPile: [], discard: [c('x1', 'red', '1'), c('x2', 'blue', '2')] });
+    const n = act(s, 'a', { type: 'draw' }); // draws a red 1 or blue 2
+    const next = n.pub.drawnCardId ? act(n, 'a', { type: 'pass' }) : act(n, 'b', { type: 'draw' });
+    expect('reshuffled' in next.pub.lastAction).toBe(false);
   });
 });
 
