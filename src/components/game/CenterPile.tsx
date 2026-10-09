@@ -21,9 +21,12 @@ interface Props {
 
 export function CenterPile({ pub, size, enterFrom, canDraw, onDraw }: Props) {
   const [pile, setPile] = useState<Card[]>([pub.topCard]);
+  const isStart = pub.lastAction.type === 'start';
   useEffect(() => {
-    setPile((p) => (p[p.length - 1]?.id === pub.topCard.id ? p : [...p.slice(-4), pub.topCard]));
-  }, [pub.topCard]);
+    const top = pub.topCard;
+    // A fresh game drops the previous game's cards; ids recur after reshuffles, so never keep duplicates.
+    setPile((p) => (isStart ? [top] : p[p.length - 1]?.id === top.id ? p : [...p.filter((x) => x.id !== top.id).slice(-4), top]));
+  }, [pub.topCard, isStart]);
   const glow = COLOR_HEX[pub.currentColor];
 
   return (

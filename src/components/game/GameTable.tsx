@@ -13,7 +13,8 @@ import { ME_POS, PILE_POS, seatPositions, type Pos } from './layout';
 import { Seat } from './Seat';
 import { WinnerOverlay } from './WinnerOverlay';
 import { api, sendAction } from '@/lib/api';
-import { useNow, useViewport } from '@/lib/hooks';
+import { useChangeEffect, useNow, useViewport } from '@/lib/hooks';
+import { serverNow } from '@/lib/serverClock';
 import { explainIllegal, isWild, legalCardIds } from '@/game/rules';
 import type { RoomDoc } from '@/game/room';
 import type { Action, Card, Color } from '@/game/types';
@@ -29,13 +30,14 @@ export function GameTable({ room, uid, hand, offline }: Props) {
   const router = useRouter();
   const pub = room.game!;
   const code = room.code;
-  const { width } = useViewport();
-  const size = width >= 768 ? 'lg' : 'md';
+  const { width, height } = useViewport();
+  const size = Math.min(width, height) >= 700 ? 'lg' : 'md';
+  const compact = width < 640;
 
   const n = pub.players.length;
   const myIdx = Math.max(0, pub.players.findIndex((p) => p.id === uid));
   const opponents = useMemo(() => Array.from({ length: n - 1 }, (_, k) => pub.players[(myIdx + k + 1) % n]), [pub.players, myIdx, n]);
-  const seats = useMemo(() => seatPositions(opponents.length), [opponents.length]);
+  const seats = useMemo(() => seatPositions(opponents.length, compact), [opponents.length, compact]);
 
   const posOf = useCallback(
     (id: string): Pos => (id === uid ? ME_POS : seats[opponents.findIndex((o) => o.id === id)] ?? PILE_POS),
@@ -49,16 +51,32 @@ export function GameTable({ room, uid, hand, offline }: Props) {
   const [busy, setBusy] = useState(false);
   const shakeTable = useAnimationControls();
 
+  // Drop a half-finished wild play once it no longer applies.
+  useEffect(() => setWildCard(null), [pub.status, pub.turnPlayerId]);
+  useEffect(() => {
+    if (wildCard && !legal.has(wildCard.id)) setWildCard(null);
+  }, [wildCard, legal]);
+
+  // One play/draw/pass in flight at a time, so a double tap sends a single request.
+  const turnActionPending = useRef(false);
   const run = useCallback(async (action: Action, cardId?: string) => {
+    const guarded = action.type === 'play' || action.type === 'draw' || action.type === 'pass';
+    if (guarded) {
+      if (turnActionPending.current) return;
+      turnActionPending.current = true;
+    }
     try {
       await sendAction(code, action);
     } catch (e) {
       toast((e as Error).message);
       if (cardId) setShake((s) => ({ id: cardId, n: s.n + 1 }));
+    } finally {
+      if (guarded) turnActionPending.current = false;
     }
   }, [code]);
 
   function onPlay(card: Card) {
+    if (turnActionPending.current) return;
     if (!legal.has(card.id)) {
       setShake((s) => ({ id: card.id, n: s.n + 1 }));
       toast(explainIllegal(pub, uid, card));
@@ -75,22 +93,27 @@ export function GameTable({ room, uid, hand, offline }: Props) {
   }
 
   // Any client nudges the server when the current turn's deadline has passed.
-  const now = useNow(1000);
+  // Deadlines are on the server's clock; after a failed attempt, wait before retrying.
+  const tick = useNow(1000);
   const timeoutSentFor = useRef(0);
+  const timeoutRetryAt = useRef(0);
   useEffect(() => {
-    if (pub.status !== 'playing' || now < pub.turnDeadline + 1500 || timeoutSentFor.current === pub.turnDeadline) return;
+    if (pub.status !== 'playing' || serverNow() < pub.turnDeadline + 1500 || timeoutSentFor.current === pub.turnDeadline) return;
+    if (Date.now() < timeoutRetryAt.current) return;
     timeoutSentFor.current = pub.turnDeadline;
-    sendAction(code, { type: 'timeout' }).catch(() => { timeoutSentFor.current = 0; });
-  }, [now, pub.turnDeadline, pub.status, code]);
+    sendAction(code, { type: 'timeout' }).catch(() => {
+      timeoutSentFor.current = 0;
+      timeoutRetryAt.current = Date.now() + 3000;
+    });
+  }, [tick, pub.turnDeadline, pub.status, code]);
 
-  // Shake the table when a +4 lands.
-  const firstSeq = useRef(pub.lastAction.seq);
-  useEffect(() => {
+  // Shake the table when a +4 lands (only for new actions, not metadata-only snapshots).
+  useChangeEffect(pub.lastAction.seq, () => {
     const a = pub.lastAction;
-    if (a.seq !== firstSeq.current && (a.type === 'play' || a.type === 'jump') && a.card?.value === 'wild4') {
+    if ((a.type === 'play' || a.type === 'jump') && a.card?.value === 'wild4') {
       shakeTable.start({ x: [0, -14, 14, -10, 10, -4, 0], transition: { duration: 0.5 } });
     }
-  }, [pub.lastAction, shakeTable]);
+  });
 
   const la = pub.lastAction;
   const enterFrom = (la.type === 'play' || la.type === 'jump') && la.card?.id === pub.topCard.id ? posOf(la.playerId) : PILE_POS;
@@ -119,7 +142,7 @@ export function GameTable({ room, uid, hand, offline }: Props) {
 
       {opponents.map((p, i) => (
         <Seat key={p.id} player={p} pos={seats[i]} isTurn={pub.turnPlayerId === p.id} deadline={pub.turnDeadline}
-          catchable={pub.catchable === p.id} onCatch={() => run({ type: 'catch', targetId: p.id })} />
+          catchable={pub.catchable === p.id} compact={compact} onCatch={() => run({ type: 'catch', targetId: p.id })} />
       ))}
 
       <CenterPile pub={pub} size={size} enterFrom={enterFrom} canDraw={myTurn && !pub.drawnCardId}

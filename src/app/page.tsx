@@ -72,9 +72,9 @@ export default function Home() {
           </>
         ) : (
           <>
-            <input className="input text-center font-display text-3xl uppercase tracking-[0.4em]" placeholder="CODE" maxLength={5} autoFocus
+            <input className="input text-center font-display text-3xl uppercase tracking-[0.4em]" placeholder="CODE" autoFocus
               value={code} onChange={(e) => setCode(normalizeRoomCode(e.target.value).slice(0, 5))}
-              onKeyDown={(e) => e.key === 'Enter' && go('join')} />
+              onKeyDown={(e) => e.key === 'Enter' && !busy && go('join')} />
             <button className="btn btn-green w-full" disabled={!uid || busy || code.length !== 5} onClick={() => go('join')}>Join</button>
             <button className="w-full py-2 text-sm text-white/60 hover:text-white" onClick={() => setJoining(false)}>Back</button>
           </>

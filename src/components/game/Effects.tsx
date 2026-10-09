@@ -1,8 +1,9 @@
 'use client';
 import { AnimatePresence, motion } from 'motion/react';
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { CardBack } from '../Card';
 import { PILE_POS, type Pos } from './layout';
+import { useChangeEffect } from '@/lib/hooks';
 import type { LastAction } from '@/game/types';
 
 type Tone = 'gold' | 'red' | 'purple' | 'blue' | 'green' | 'gray';
@@ -41,12 +42,10 @@ function drawsFor(a: LastAction): { target: string; n: number } | null {
 }
 
 export function Effects({ lastAction, nameOf, posOf }: { lastAction: LastAction; nameOf: (id: string) => string; posOf: (id: string) => Pos }) {
-  const firstSeq = useRef(lastAction.seq);
   const [banner, setBanner] = useState<{ seq: number; text: string; tone: Tone } | null>(null);
   const [flyers, setFlyers] = useState<{ key: string; to: Pos; delay: number }[]>([]);
 
-  useEffect(() => {
-    if (lastAction.seq === firstSeq.current) return;
+  useChangeEffect(lastAction.seq, () => {
     const b = bannerFor(lastAction, nameOf);
     if (b) {
       setBanner({ seq: lastAction.seq, ...b });
@@ -58,8 +57,7 @@ export function Effects({ lastAction, nameOf, posOf }: { lastAction: LastAction;
       const to = posOf(d.target);
       setFlyers((f) => [...f, ...Array.from({ length: Math.min(d.n, 8) }, (_, i) => ({ key: `${lastAction.seq}-${i}`, to, delay: i * 0.08 }))]);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lastAction.seq]);
+  });
 
   return (
     <div className="pointer-events-none fixed inset-0 z-50">
