@@ -1,6 +1,6 @@
 import { applyAction } from '../engine';
 import { seededRng } from '../deck';
-import type { Action, Card, Color, GameState, PendingDraw, Value } from '../types';
+import type { Action, Card, Color, GameState, PendingDraw, Rng, Value } from '../types';
 
 export const c = (id: string, color: Color | null, value: Value): Card => ({ id, color, value });
 
@@ -51,15 +51,13 @@ export function makeState(o: MakeStateOpts): GameState {
   };
 }
 
-const rng = seededRng(1);
-
-export function act(s: GameState, pid: string, action: Action, now = 0): GameState {
+export function act(s: GameState, pid: string, action: Action, now = 0, rng: Rng = seededRng(1)): GameState {
   const r = applyAction(s, pid, action, now, rng);
   if (!r.ok) throw new Error(`unexpected error: ${r.error}`);
   return r.state;
 }
 
-export function actErr(s: GameState, pid: string, action: Action, now = 0): string {
+export function actErr(s: GameState, pid: string, action: Action, now = 0, rng: Rng = seededRng(1)): string {
   const r = applyAction(s, pid, action, now, rng);
   if (r.ok) throw new Error('expected an error');
   return r.error;

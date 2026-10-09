@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { startGame } from '../engine';
+import { applyAction, startGame } from '../engine';
 import { seededRng } from '../deck';
+import type { Action, Player } from '../types';
 import { act, actErr, c, filler, makeState } from './helpers';
 
 const R5 = c('t', 'red', '5');
@@ -16,6 +17,45 @@ describe('startGame', () => {
     expect(s.pub.drawPileCount).toBe(108 - 14 - 1);
     expect(s.pub.turnDeadline).toBe(31_000);
     expect(['a', 'b']).toContain(s.pub.turnPlayerId);
+  });
+
+  const players = (n: number): Player[] => Array.from({ length: n }, (_, i) => ({ id: `p${i}`, name: `P${i}` }));
+
+  it('rejects fewer than 2 or more than 8 players', () => {
+    expect(() => startGame(players(1), seededRng(1), 0)).toThrow(/2/);
+    expect(() => startGame(players(9), seededRng(1), 0)).toThrow(/8/);
+    expect(() => startGame(players(8), seededRng(1), 0)).not.toThrow();
+  });
+
+  it('rejects duplicate player ids', () => {
+    expect(() => startGame([{ id: 'a', name: 'A' }, { id: 'a', name: 'A2' }], seededRng(1), 0)).toThrow(/duplicate/i);
+  });
+
+  it('records the start as the turn player, continuing the previous sequence', () => {
+    const fresh = startGame(players(3), seededRng(5), 0);
+    expect(fresh.pub.lastAction).toEqual({ seq: 1, type: 'start', playerId: fresh.pub.turnPlayerId });
+    const rematch = startGame(players(3), seededRng(5), 0, 41);
+    expect(rematch.pub.lastAction.seq).toBe(42);
+  });
+});
+
+describe('purity', () => {
+  it('never mutates the input state, on success or on error', () => {
+    const s = makeState({ hands: { a: [c('r3', 'red', '3'), c('w4', null, 'wild4'), ...filler('a')], b: filler('b') }, top: R5, drawPile: [], discard: [c('x1', 'blue', '1')] });
+    const actions: Action[] = [
+      { type: 'play', cardId: 'r3' },
+      { type: 'play', cardId: 'w4', chosenColor: 'blue' },
+      { type: 'draw' },
+      { type: 'play', cardId: 'a1' },
+      { type: 'play', cardId: 'w4' },
+      { type: 'pass' },
+      { type: 'catch', targetId: 'b' },
+    ];
+    for (const action of actions) {
+      const before = structuredClone(s);
+      applyAction(s, 'a', action, 0, seededRng(3));
+      expect(s).toEqual(before);
+    }
   });
 });
 
@@ -38,7 +78,7 @@ describe('basic play', () => {
   });
 
   it('rejects a non-matching card', () => {
-    expect(actErr(s(), 'a', { type: 'play', cardId: 'a1' })).toMatch(/can't play/);
+    expect(actErr(s(), 'a', { type: 'play', cardId: 'a1' })).toBe("That card doesn't match");
   });
 
   it('rejects a card you do not hold', () => {
@@ -235,6 +275,14 @@ describe('Juan call', () => {
   it('the catch window closes after the next play', () => {
     const n = act(act(two(), 'a', { type: 'play', cardId: 'r3' }), 'b', { type: 'play', cardId: 'r9' });
     expect(n.pub.catchable).toBeNull();
+  });
+
+  it('rejects a catch with a bad target or when nobody is catchable (no throw)', () => {
+    const s = two();
+    expect(actErr(s, 'c', { type: 'catch', targetId: null } as unknown as Action)).toMatch(/Too late/);
+    expect(actErr(s, 'c', { type: 'catch', targetId: '' })).toMatch(/Too late/);
+    expect(actErr(s, 'c', { type: 'catch', targetId: 'a' })).toMatch(/Too late/);
+    expect(actErr(s, 'c', { type: 'catch' } as unknown as Action)).toMatch(/Too late/);
   });
 
   it('cannot catch yourself', () => {

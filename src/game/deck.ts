@@ -1,12 +1,14 @@
 import { COLORS, NUMBER_VALUES, type Card, type Color, type Rng, type Value } from './types';
 
+const POWER_VALUES = ['skip', 'reverse', 'draw2'] as const satisfies readonly Value[];
+
 export function createDeck(): Card[] {
   const cards: Card[] = [];
   let n = 0;
   const add = (color: Color | null, value: Value) => cards.push({ id: `c${n++}`, color, value });
   for (const color of COLORS) {
     add(color, '0');
-    for (const value of [...NUMBER_VALUES.slice(1), 'skip', 'reverse', 'draw2'] as Value[]) {
+    for (const value of [...NUMBER_VALUES.slice(1), ...POWER_VALUES]) {
       add(color, value);
       add(color, value);
     }

@@ -1,21 +1,25 @@
 import { createDeck, shuffle } from './deck';
 import { canPlay, explainIllegal, isNumber, isPower, isWild, matchesTop } from './rules';
 import {
-  COLORS, HAND_SIZE, MIN_PLAYERS, TURN_MS,
+  COLORS, HAND_SIZE, MAX_PLAYERS, MIN_PLAYERS, TURN_MS,
   type Action, type ActionResult, type Card, type Color, type GameState, type LastAction, type Player, type PlayerPublic, type Rng,
 } from './types';
 
-export function startGame(players: Player[], rng: Rng, now: number): GameState {
-  if (players.length < MIN_PLAYERS) throw new Error('Need at least 2 players');
+export function startGame(players: Player[], rng: Rng, now: number, prevSeq = 0): GameState {
+  if (players.length < MIN_PLAYERS || players.length > MAX_PLAYERS) {
+    throw new Error(`Need ${MIN_PLAYERS}–${MAX_PLAYERS} players`);
+  }
+  if (new Set(players.map((p) => p.id)).size !== players.length) throw new Error('Duplicate player ids');
   const drawPile = shuffle(createDeck(), rng);
   const hands: Record<string, Card[]> = {};
   for (const p of players) hands[p.id] = drawPile.splice(0, HAND_SIZE);
   const [topCard] = drawPile.splice(drawPile.findIndex(isNumber), 1);
+  const turnPlayerId = players[Math.floor(rng() * players.length)].id;
   const state: GameState = {
     pub: {
       status: 'playing',
       players: players.map((p) => ({ id: p.id, name: p.name, cardCount: HAND_SIZE, calledJuan: false })),
-      turnPlayerId: players[Math.floor(rng() * players.length)].id,
+      turnPlayerId,
       direction: 1,
       topCard,
       currentColor: topCard.color as Color,
@@ -24,7 +28,7 @@ export function startGame(players: Player[], rng: Rng, now: number): GameState {
       drawnCardId: null,
       catchable: null,
       drawPileCount: 0,
-      lastAction: { seq: 0, type: 'start', playerId: players[0].id },
+      lastAction: { seq: prevSeq + 1, type: 'start', playerId: turnPlayerId },
       winnerId: null,
     },
     priv: { hands, drawPile, discard: [] },
@@ -60,9 +64,7 @@ function play(s: GameState, pid: string, cardId: string, chosenColor: Color | un
   const hand = s.priv.hands[pid];
   const card = hand.find((x) => x.id === cardId);
   if (!card) return "You don't have that card";
-  if (!canPlay(pub, pid, card)) {
-    return pid === pub.turnPlayerId ? `You can't play that card now. ${explainIllegal(pub, pid, card)}` : explainIllegal(pub, pid, card);
-  }
+  if (!canPlay(pub, pid, card)) return explainIllegal(pub, pid, card);
   if (isWild(card) && (!chosenColor || !COLORS.includes(chosenColor))) return 'Pick a colour';
 
   const isJump = pid !== pub.turnPlayerId;
@@ -156,9 +158,9 @@ function callJuan(s: GameState, pid: string): string | null {
   return null;
 }
 
-function catchPlayer(s: GameState, pid: string, targetId: string, rng: Rng): string | null {
+function catchPlayer(s: GameState, pid: string, targetId: unknown, rng: Rng): string | null {
   if (targetId === pid) return "You can't catch yourself";
-  if (s.pub.catchable !== targetId) return 'Too late to catch them';
+  if (typeof targetId !== 'string' || s.pub.catchable === null || s.pub.catchable !== targetId) return 'Too late to catch them';
   const n = drawCards(s, targetId, 2, rng).length;
   s.pub.catchable = null;
   record(s, { type: 'catch', playerId: pid, targetId, n });
