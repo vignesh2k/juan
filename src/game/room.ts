@@ -33,7 +33,7 @@ export function activeLobby(room: RoomDoc, keepId?: string): Player[] {
 
 /** Host for the next game: the host if still active, else the first active lobby member. */
 export function nextHostId(room: RoomDoc, lobby: Player[]): string {
-  return lobby.some((p) => p.id === room.hostId) ? room.hostId : (lobby[0]?.id ?? room.hostId);
+  return lobby.some((p) => p.id === room.hostId) ? room.hostId : (lobby.find((p) => !p.isBot)?.id ?? room.hostId);
 }
 
 /**

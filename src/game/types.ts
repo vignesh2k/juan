@@ -14,6 +14,7 @@ export interface Card {
 export interface Player {
   id: string;
   name: string;
+  isBot?: boolean;
 }
 
 export interface PlayerPublic extends Player {

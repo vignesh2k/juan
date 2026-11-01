@@ -147,6 +147,17 @@ export function GameTable({ room, uid, hand, offline }: Props) {
     });
   }, [tick, pub.turnDeadline, pub.status, code, timeoutDelay]);
 
+  // Each connected player can nudge a bot. The sequence guard makes simultaneous
+  // requests harmless, and the interval retries if a network request fails.
+  const botTurn = pub.players.some((p) => p.id === pub.turnPlayerId && p.isBot);
+  useEffect(() => {
+    if (offline || pub.status !== 'playing' || !botTurn) return;
+    const timer = setInterval(() => {
+      api('room/bot-turn', { code, seq: pub.lastAction.seq }).catch(() => {});
+    }, 1600);
+    return () => clearInterval(timer);
+  }, [botTurn, code, offline, pub.lastAction.seq, pub.status]);
+
   // A small jolt when a +4 lands (PowerEffects calls this at the landing).
   const onShake = useCallback(() => {
     shakeTable.start({ x: [0, -6, 6, -3, 3, 0], transition: { duration: 0.35 } });

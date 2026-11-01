@@ -11,7 +11,7 @@ export const POST = handler(async (uid, body) => {
     // game; their seat in the current game stays and the turn timer covers their turns.
     const lobby = room.lobby.filter((p) => p.id !== uid);
     if (lobby.length === room.lobby.length) return;
-    const hostId = room.hostId === uid ? (lobby[0]?.id ?? room.hostId) : room.hostId;
+    const hostId = room.hostId === uid ? (lobby.find((p) => !p.isBot)?.id ?? room.hostId) : room.hostId;
     tx.update(roomRef(code), { lobby, hostId, updatedAt: now });
   });
 });

@@ -68,6 +68,7 @@ export function Lobby({ room, uid }: { room: RoomDoc; uid: string }) {
                 {avatarInitial(p.name)}
               </span>
               <span className="min-w-0 flex-1 truncate font-semibold">{p.name}{p.id === uid && <span className="text-white/50"> (you)</span>}</span>
+              {p.isBot && <span className="text-xs text-white/50">BOT</span>}
               {p.id === room.hostId && <span title="Host">👑</span>}
               {isHost && p.id !== uid && (
                 <button aria-label={`Remove ${p.name}`} title={`Remove ${p.name}`} disabled={busy}
@@ -82,6 +83,7 @@ export function Lobby({ room, uid }: { room: RoomDoc; uid: string }) {
       </div>
 
       <div className="mt-6 w-full max-w-sm space-y-3">
+        {isHost && <button className="w-full rounded-full bg-white/10 py-3 font-bold hover:bg-white/20 disabled:opacity-40" disabled={busy || room.lobby.length >= MAX_PLAYERS} onClick={() => run('room/bot')}>+ Add bot</button>}
         {canStart ? (
           <button className="btn btn-green w-full" disabled={busy || room.lobby.length < MIN_PLAYERS} onClick={() => run('room/start')}>
             {room.lobby.length < MIN_PLAYERS ? 'Waiting for players…' : 'Start game'}

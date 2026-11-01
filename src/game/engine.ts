@@ -19,7 +19,7 @@ export function startGame(players: Player[], rng: Rng, now: number, prevSeq = 0)
   const state: GameState = {
     pub: {
       status: 'playing',
-      players: players.map((p) => ({ id: p.id, name: p.name, cardCount: HAND_SIZE, calledJuan: false, missedTurns: 0 })),
+      players: players.map((p) => ({ ...p, cardCount: HAND_SIZE, calledJuan: false, missedTurns: 0 })),
       turnPlayerId,
       direction: 1,
       topCard,
